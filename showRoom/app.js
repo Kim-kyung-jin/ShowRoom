@@ -74,13 +74,3 @@ app.use(function(err,req,res,next) {
 process.on("unhandledRejection", (reason) => {
 	console.log(reason);
 });
-
-// function errorHandler(err, req, res, next) {
-// 	if(err.code)
-// 		res.status(err.code);
-// 	else{
-// 		res.status(500);
-// 		console.log(err);
-// 		res.send({msg:err.message});
-// 	}
-// }
