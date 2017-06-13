@@ -1,738 +1,497 @@
-const BoardController=require('../utils/boardController.js')
-	  ,UserController=require('../utils/userController.js')
-	  ,Board=require('../model/Boarddb'); 
-const async=require('async');
+
 const config=require('config');
 const fs=require('fs');
 const moment=require('moment');
+
+const ObjectId = require('mongodb').ObjectID;	
+const mkdirp = require('mkdirp');
+const path=require('path');
+const randomstring =require('randomstring');
+const multer = require('../utils/multers3.js');
+const BoardController=require('../utils/boardController.js')
+	  ,UserController=require('../utils/userController.js')
+	  ,Board=require('../model/Boarddb');
 const jsonWebToken=require('../utils/jsonWebToken');
+const AWS=require('aws-sdk');
+AWS.config.region = config.Customer.AWSInfo.region;
+AWS.config.accessKeyId = config.Customer.AWSInfo.accessKeyId;
+AWS.config.secretAccessKey = config.Customer.AWSInfo.secretAccessKey;
+var s3=new AWS.S3();
 
 moment.locale("ko");
+
 var output=new Object();
-exports.example=function(req,res,next){
-	var board=new Board();
-	board.boardUserId=req.body.userId;
-	board.boardAge=req.body.userAge;
-	board.save();
-}
-exports.example1=function(req,res,next){
-	Board.update({_id:req.body.boardId},{"$push":{"boardAge":req.body.userAge}},function(err,result){
+
+
+
+// exports.example=function(req,res,next){
+// 	var board=new Board();
+// 	board.boardUserId=req.body.userId;
+// 	board.boardAge=req.body.userAge;
+// 	board.save();
+// }
+
+// exports.example1=function(req,res,next){
+// 	Board.update({_id:req.body.boardId},{"$push":{"boardAge":req.body.userAge}},function(err,result){
 		
-	});
-}
-exports.example2=function(req,res,next){
-	BoardController.example123(function(err,result){
-		console.log(result);
-	});
+// 	});
+// }
+// exports.example2=function(req,res,next){
+// 	BoardController.example123(function(err,result){
+// 		console.log(result);
+// 	});
 
-}
-
-//게시판 목록 보기
-exports.listBoard=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else 
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,0,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,0,0);
-				else{
-					BoardController.getBoardFindListPaging(userInfo.userId,req.params.page,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userTokenInfo,result);
-						else
-							callback(null,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userTokenInfo,boardListResult){
-			if(err)
-				console.log(err);
-			else if(boardListResult==0){
-				output.msg="success";
-				output.data={
-					msg:"데이터없음"
-				}
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data={
-					userToken:userTokenInfo.userToken,
-					result:boardListResult
-				}
-				res.json(output);
-			}
-		});
+// }
+exports.joinexample = async function(req,res,next){
+	let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+	let userIdCheckdata = { _id: userToken.ObjectId };
+	let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+	let abcd = await BoardController.boardJoin();
 }
 
-// 게시판 등록
-exports.addBoard=function(req,res,next){
-	var board=new Board();
-	var current_time=new moment().format("YYYY-MM-DD HH:mm:ss");
-	var PhotoFile=req.files;
-	var strArray=PhotoFile[0].path.split('/');
-	
-	board.boardPhoto=config.Customer.imageurl+'/'+strArray[1]+'/'+strArray[2]+'/'+strArray[3]+'/'+strArray[4];
-	board.boardContent=req.body.boardContent;
-	board.boardTodayCount=0;
-	board.boardBestCody=false;
-	board.boardOnOff=true;
-	board.boardDatetime=current_time;
 
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0)
-				else{
-					board.boardUserId=userInfo.userId;
-					board.boardUserName=userInfo.userName;
-					BoardController.saveBoard(board,function(err,result){
-						if(err)
-							console.log(err);
-						else
-							callback(null,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userTokenInfo,saveBoardResult){
-			if(err)
-				console.log(err);
-			else if(saveBoardResult==0){
-				fs.unlink(PhotoFile[0].path,function(err){
-					if(err)
-						console.log(err);
-				});
-				output.msg="success";
-				output.data="저장 실패";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data={
-					userToken:userTokenInfo.userToken,
-					result:saveBoardResult
-				}
-				res.json(output);
-			}
-		});
+
+
+
+//리스트보기
+exports.listBoard = async function(req, res, next) {
+	let userTokenCheck = req.headers.usertoken;
+	let limit = 10;
+	let skip = (req.params.page - 1) * limit;
+	let userToken,userIdCheckdata,userInfo,boardListquery,boardListResult;
+	if(userTokenCheck == 'guest') {
+		boardListquery = [{"$project":{
+								boardUserName: 1,
+								boardPhoto: 1,
+								boardDatetime: 1,
+								boardContent: 1,
+								boardOnOff: 1,
+								boardName: 1,
+								boardLikeCount: {"$size": "$boardLikeUsers"},
+								boardCommentsCount: {"$size": "$boardComments"},
+								boardIsLike: {"$in": ['guest', "$boardLikeUsers"]}}},
+								{"$match": {"boardOnOff": true}},
+								{"$skip": skip},
+								{"$limit": limit}];
+		boardListResult = await BoardController.aggregateBoard(boardListquery);
+		output.msg="success";
+		output.data = boardListResult;
+		
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else{
+		userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+	 	userIdCheckdata = { _id: userToken.ObjectId };
+	 	userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+	 	
+	 	boardListquery = [{"$project":{
+								boardUserName: 1,
+								boardPhoto: 1,
+								boardDatetime: 1,
+								boardContent: 1,
+								boardName: 1,
+								boardOnOff: 1,
+								boardLikeCount: {"$size": "$boardLikeUsers"},
+								boardCommentsCount: {"$size": "$boardComments"},
+								boardUserPhoto: userInfo.userPhoto,
+								boardIsLike: {"$in": [userInfo.userId, "$boardLikeUsers"]}}},
+								{"$match": {"boardOnOff": true}},
+								{"$skip": skip},
+								{"$limit": limit}];
+		boardListResult = await BoardController.aggregateBoard(boardListquery);
+
+		output.msg="success";
+		output.data = boardListResult;
+		
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
+}
+
+//게시판 등록
+exports.addBoard = async function(req, res, next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="fail";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="fail";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let board = new Board();
+
+
+		board.boardUserId = userInfo.userId;
+		//board.boardUserName = userInfo.userName;
+		board.boardName = req.body.boardName;
+		board.boardPhoto = req.file.transforms[0].location;
+		board.boardContent = req.body.boardContent;
+		board.boardDatetime = new moment().format("YYYY-MM-DD HH:mm:ss"); 
+		board.boardPhotoKey = req.file.transforms[0].key;
+		//board.boardUserPhoto = userInfo.userPhoto;
+		let saveBoardResult = await BoardController.saveBoard(board);
+		output.msg = "success";
+		//output.data = saveBoardResult;
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
 }
 //게시판 상세보기
-exports.detailBoard=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userTokenInfo,0);
-				else{
-					BoardController.detailFindboard(req.params.boardId,userInfo.userId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userTokenInfo,result);
-						else
-							callback(null,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userTokenInfo,boardDetailResult){
-			if(err)
-				console.log(err);
-			else if(boardDetailResult==0){
-				output.msg="success";
-				output.data="데이터 없음";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.userToken=userTokenInfo.userToken;
-				output.data=boardDetailResult;
-				res.json(output);
-			}
-		});
+exports.detailBoard = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	let boardDetailquery;
+	if(userTokenCheck == 'guest'){
+		boardDetailquery = [{"$project": {
+								boardUserName: 1,
+								boardPhoto: 1,
+								boardDatetime: 1,
+								boardContent: 1,
+								boardComments: 1,
+								boardOnOff: 1,
+								boardComments: 1,
+								boardLikeCount: {"$size": "$boardLikeUsers"},
+								boardCommentsCount: {"$size": "$boardComments"},
+								boardIsLike: {"$in": ["guest", "$boardLikeUsers"]}}},
+								{ "$match": { _id: ObjectId(req.params.boardId)}}
+		];
+		boardDetailResult = await BoardController.aggregateBoard(boardDetailquery);
+		let boardDetailResultObject = boardDetailResult[0];
+		output.msg="success";
+		output.data = boardDetailResultObject;
+		
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		boardDetailquery = [{"$project": {
+									boardUserName: 1,
+									boardPhoto: 1,
+									boardDatetime: 1,
+									boardContent: 1,
+									boardComments: 1,
+									boardOnOff: 1,
+									boardComments:1,
+									boardName: 1,
+									boardLikeCount: {"$size": "$boardLikeUsers"},
+									boardCommentsCount: {"$size": "$boardComments"},
+									boardUserPhoto: userInfo.userPhoto,
+									boardIsLike: {"$in": [userInfo.userId, "$boardLikeUsers"]}}},
+									{ "$match": { _id: ObjectId(req.params.boardId)}}
+		];
+		let boardDetailResult = await BoardController.aggregateBoard(boardDetailquery);
+		let boardDetailResultObject = boardDetailResult[0];
+		output.msg="success";
+		output.data = boardDetailResultObject
+		
+		res.setHeader('userToken',userToken.userToken);
+	}
+	
+	res.json(output);
 }
+
 //게시물 수정
-exports.editBoard=function(req,res,next){
-	var board=new Board();
-	var PhotoFile=req.files;
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,0,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});	
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					BoardController.detailFindboard(req.params.boardId,userInfo.userId,function(err,result){
-						console.log(result);
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else if(result[0].boardUserId==userInfo.userId)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,0);
-							
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,boardDetail,callback){
-				
-				if(userInfo==0 || boardDetail==0){
-					fs.unlink(PhotoFile[0].path,function(err){
-						if(err)
-							console.log(err);
-					});
-					callback(null,0,userTokenInfo,0);
-				}
-				else
-					if(req.body.boardContent==0){
-						
-						var strArray=boardDetail[0].boardPhoto.split('/');
-						var ImageUrl='public/'+strArray[3]+'/'+strArray[4]+'/'+strArray[5];
-						fs.unlink(ImageUrl,function(err){
-							if(err)
-								console.log(err);
-						});;
-						var changePhoto=config.Customer.imageurl+'/uploads/'+PhotoFile[0].fieldname+'/'+PhotoFile[0].filename;
-						BoardController.updateBoardPhoto(boardDetail[0]._id,changePhoto,function(err,result){
-							if(err)
-								console.log(err);
-							else if(result==0)
-								callback(null,userInfo,userTokenInfo,result);
-							else
-								callback(null,userInfo,userTokenInfo,result);
-						});
-					}
-				
-					else if(PhotoFile[0]==null){
-						BoardController.updateBoardContent(boardDetail[0]._id,req.body.boardContent,function(err,result){
-							if(err)
-								console.log(err);
-							else if(result==0)
-								callback(null,userInfo,userTokenInfo,result);
-							else
-								callback(null,userInfo,userTokenInfo,result);
-						});
-					}
-					else{
-						var strArray=boardDetail[0].boardPhoto.split('/');
-						var ImageUrl='public/'+strArray[3]+'/'+strArray[4]+'/'+strArray[5];
-						fs.unlink(ImageUrl,function(err){
-							if(err)
-								console.log(err);
-						});;
-						var changePhoto=config.Customer.imageurl+'/uploads/'+PhotoFile[0].fieldname+'/'+PhotoFile[0].filename;
-						BoardController.updateBoardAll(boardDetail[0]._id,changePhoto,req.body.boardContent,function(err,result){
-							if(err)
-								console.log(err);
-							else if(result==0)
-								callback(null,userInfo,userTokenInfo,result);
-							else
-								callback(null,userInfo,userTokenInfo,result);
-						});
-					}
+exports.editBoard = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		
+		if(req.file) {
+			let changePhoto = req.file.location;
+			let changeKey = req.file.key;
+			let saveDay=new moment().format("YYYY-MM-DD");
+			let boardUpdateSetquery = '';
+			let deletePhoto = [];
+			if(req.body.boardContent)
+				boardUpdateSetquery = {"$set": {"boardPhoto": changePhoto, "boardPhotoKey": changeKey, "boardContent": req.body.boardContent}};
+			else
+				boardUpdateSetquery = {"$set": {"boardPhoto": changePhoto, "boardPhotoKey": changeKey}};
+			let boardDetailquery = {_id: ObjectId(req.params.boardId)};
+			let boardDetail = await BoardController.findOneBoard(boardDetailquery);
+			deletePhoto.push({Key: boardDetail.boardPhotoKey});
+			await multer.deleteFile(deletePhoto);
+			
+			let boardPhotoUpdate = await BoardController.updateBoard(boardDetailquery, boardUpdateSetquery);
+			output.msg = "success";
+			output.data = {
+				result: "Update success"
 			}
-		],function(err,userInfo,userTokenInfo,boardEditResult){
-			if(err)
-				console.log(err);
-			else if(userInfo==0 || boardEditResult==0){
-				fs.unlink(PhotoFile[0].path,function(err){
-					if(err)
-						console.log(err);
-				});
-				output.msg="success";
-				output.data="수정권한 없음";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data={
-					msg:"수정완료",
-					userToken:userTokenInfo.userToken
-				}
-				res.json(output);
-			}
-		});
+		}
+		else {
+			let boardUpdatequery = {_id: ObjectId(req.params.boardId)};
+			let boardUpdateSetquery = {"$set": {"boardContent": req.body.boardContent}};
+			let boardContentUpdate = await BoardController.updateBoard(boardUpdatequery,boardUpdateSetquery);
+			output.msg = "success";
+			output.data = {
+				result: "Update success"
+			} 
+		}
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
 }
-//게시판 삭제
-exports.deleteBoard=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					BoardController.detailFindboard(req.params.boardId,userInfo.userId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else if(result[0].boardUserId==userInfo.userId)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,0);
-							
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,boardDetail,callback){
-				console.log(boardDetail);
-				if(userInfo==0 || boardDetail==0)
-					callback(null,userInfo,userTokenInfo,boardDetail);
-				else{
-					BoardController.removeBoard(req.params.boardId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userInfo,userTokenInfo,boardDeleteResult){
-			if(err)
-				console.log(err)
-			else if(boardDeleteResult==0){
-				output.msg="success";
-				output.data="삭제권한 없음";
-				output.token=userTokenInfo.userToken;
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data="삭제완료";
-				output.token=userTokenInfo.userToken;
-				res.json(output);
-			}
-		});
-}
-//게시판 댓글 달기
-exports.addComment=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,0);
-				else{
-					var comments={
-						boardCommentsUserId:userInfo.userId,
-						boardCommentsName:userInfo.userName,
-						boardCommentsContent:req.body.commentsContent
-					}
-					BoardController.addBoardComment(req.params.boardId,comments,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userInfo,userTokenInfo,addBoardCommentResult){
-			if(err)
-				console.log(err)
-			else if(addBoardCommentResult==0){
-				output.msg="success";
-				output.data="등록실패";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.userToken=userTokenInfo.userToken;
-				output.data="등록성공";
-				res.json(output);
-			}
-		});
-}
-//게시판 댓글 수정
-exports.editComment=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);	
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					BoardController.findBoardComment(req.params.boardId,req.params.commentId,function(err,result){
-						
-						if(err)
-							console.log(err);
-						else if(result.boardComments[0].boardCommentsUserId==userInfo.userId)
-							callback(null,userInfo,userTokenInfo,1);
-						else
-							callback(null,userInfo,userTokenInfo,0);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,boardDetailComment,callback){
-				
-				if(boardDetailComment==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					var comment={
-						"_id":req.params.commentId,
-						"boardCommentsUserId":userInfo.userId,
-						"boardCommentsName":userInfo.userName,
-						"boardCommentsContent":req.body.commentContent
-					}
-					BoardController.editBoardComment(req.params.boardId,req.params.commentId,comment,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userInfo,userTokenInfo,editBoardCommentResult){
-			if(err)
-				console.log(err);
-			else if(editBoardCommentResult==0){
-				output.msg="success";
-				output.data="수정못함";
-				output.userToken=userTokenInfo.userToken;
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data="수정성공";
-				output.userToken=userTokenInfo.userToken;
-				res.json(output);
-			}
-		});
-}
-//게시판 댓글 삭제
-exports.deleteComment=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);	
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					BoardController.findBoardComment(req.params.boardId,req.params.commentId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result.boardComments[0].boardCommentsUserId==userInfo.userId)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,boardDetailComment,callback){
-				if(userInfo==0 || boardDetailComment==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					BoardController.deleteBoardComment(req.params.boardId,req.params.commentId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==1)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userInfo,userTokenInfo,deleteBoardCommentResult){
-			if(err)
-				console.log(err);
-			else if(deleteBoardCommentResult==0){
-				output.msg="success";
-				output.data="삭제실패";
-				output.userToken=userTokenInfo.userToken;
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data="삭제성공";
-				output.userToken=userTokenInfo.userToken;
-				res.json(output);
-			}
-		});
-}
-//게시판 좋아요
-exports.likePushPull=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);	
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				console.log(userInfo);
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					if(req.body.boardLike=="true"){
-						BoardController.likeBoardtrue(req.params.boardId,userInfo.userId,function(err,result){
-							if(err)
-								console.log(err);
-							else if(result==1)
-								callback(null,userInfo,userTokenInfo,result);
-							else
-								callback(null,userInfo,userTokenInfo,result);
-						});
-					}
-					else{
-						BoardController.likeBoardfalse(req.params.boardId,userInfo.userId,function(err,result){
-							if(err)
-								console.log(err);
-							else if(result==1)
-								callback(null,userInfo,userTokenInfo,result);
-							else
-								callback(null,userInfo,userTokenInfo,result);
-						});
-					}
-				}
-			},
-			function(userInfo,userTokenInfo,boardLike,callback){
-				if(userInfo==0 || boardLike==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else
-					if(req.body.boardLike=="true"){
-						BoardController.getboardTodayCountPlus(req.params.boardId,function(err,result){
-							if(err)
-								console.log(err);
-							else if(result==0)
-								callback(null,userInfo,userTokenInfo,result);
-							else
-								callback(null,userInfo,userTokenInfo,result);
-						});
-					}
-					else{
-						BoardController.getboardTodayCountMinus(req.params.boardId,function(err,result){
-							if(err)
-								console.log(err);
-							else if(result==0)
-								callback(null,userInfo,userTokenInfo,result);
-							else
-								callback(null,userInfo,userTokenInfo,result);
-						});
-					}
-			}
-		],function(err,userInfo,userTokenInfo,boardLikeResult){
-			if(err)
-				console.log(err);
-			else if(userInfo==0 || boardLikeResult==0){
-				output.msg="success",
-				output.data="좋아요에러"
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data={
-					userToken:userTokenInfo.userToken,
-					like:req.body.boardLike,
-					likeCount:boardLikeResult.boardLikeUsers.length
-				};
-				res.json(output);
-			}
-		});
-}
+//게시판삭제
+exports.deleteBoard = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let boardFindOnequery = {_id: ObjectId(req.params.boardId)};
+		let boardInfo = await BoardController.findOneBoard(boardFindOnequery);
+		let after_time=moment().add(30,'days');
+		let times = after_time.format("YYYY-MM-DD");
 
-//어제의 베스트 유저코디 선정
-exports.todayBestUserCody=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				BoardController.getboardTodayBestUserCodyList(function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result);
-					else
-						callback(null,result);
-				});
-			},
-			function(getboardTodayBestUserCodyList,callback){
-				if(getboardTodayBestUserCodyList==0)
-					callback(null,getboardTodayBestUserCodyList);
-				else{
-					var current_time=new moment().format("YYYY-MM-DD");
-					BoardController.getboardTodayBestUserCodyChoise(getboardTodayBestUserCodyList[0]._id,current_time,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,result);
-						else
-							callback(null,result);
-					});
-				}
+		
+		if(userInfo.userId == boardInfo.boardUserId){
+			let removeBoardSetquery = {"$set": {"boardOnOff": false, "boardDeleteTime":times}};
+			let removeBoard = await BoardController.updateBoard(boardFindOnequery,removeBoardSetquery);
+			output.msg = "success";
+			output.data = {
+				result: "remove success"
 			}
-		],function(err,getboardTodayBestUserCodyListResult){
-			if(err)
-				console.log(err);
-			else if(getboardTodayBestUserCodyListResult==0){
-				output.data="success";
-				output.msg="오늘자베스트코디없음";
-				res.json(output);
-			}
-			else{
-				output.data="success";
-				output.msg="오늘자 베스트 코디 선정"
-				res.json(output);
-			}
-		});
-}
-
-//어제의 베스트 게시물 보기
-exports.pastUserCody=function(req,res,next){
-	BoardController.getboardPastUserCody(function(err,result){
-		if(err)
-			console.log(err);
-		else if(result==0){
-			output.data="success";
-			output.msg="역대베스트코디 없음";
-			res.json(output);
 		}
 		else{
-			output.data="success";
-			output.msg=result;
-			res.json(output);
+			output.msg = "fail";
+			output.data = {
+				result:"Not remove"
+			}
 		}
-	});
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
 }
+//게시판 댓글 달기
+exports.addComment = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else{
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let comments = {
+			boardCommentsUserId: userInfo.userId,
+			boardCommentsUserName: userInfo.userName,
+			boardCommentsUserPhoto: userInfo.userPhoto,
+			boardCommentsContent: req.body.commentsContent,
+			boardCommentsDatetime: new moment().format("YYYY-MM-DD HH:mm:ss")
+		}
+		let boardFindOnequery = {_id: ObjectId(req.params.boardId)};
+		let boardCommentsSetquery = {"$push": {boardComments: comments}};
+		let boardComments = await BoardController.updateBoard(boardFindOnequery, boardCommentsSetquery);
+		output.msg = "success";
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
+}
+//게시판댓글수정
+exports.editComment = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="fail";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="fail";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let boardFindOnequery = {_id: ObjectId(req.params.boardId)};
+		let boardIsMatchquery = {"boardComments": {"$elemMatch": {_id: ObjectId(req.params.commentId)}}};
+		let boardIsMatch = await BoardController.findOneBoardComment(boardFindOnequery, boardIsMatchquery,userInfo.userId);
+		
+		let comment = {
+			"_id":boardIsMatch._id,
+			"boardCommentsUserId":userInfo.userId,
+			"boardCommentsUserName":userInfo.userName,
+			"boardCommentsContent":req.body.commentsContent,
+			"boardCommentsUserPhoto": userInfo.userPhoto
+		}
+		let boardUpdatequery = {_id:ObjectId(req.params.boardId), "boardComments._id": ObjectId(req.params.commentId)};
+		let boardUpdateSetquery = {"$set": {"boardComments.$": comment}};
+		let boardUpdate = await BoardController.updateBoard(boardUpdatequery,boardUpdateSetquery);
+		output.msg = "success";
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
+}
+//게시판댓글삭제
+exports.deleteComment = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="fail";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="fail";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let boardFindOnequery = {_id: ObjectId(req.params.boardId)};
+		let boardIsMatchquery = {"boardComments": {"$elemMatch": {_id: ObjectId(req.params.commentId)}}};
+		let boardIsMatch = await BoardController.findOneBoardComment(boardFindOnequery, boardIsMatchquery,userInfo.userId);
+		let boardDeleteSetquery = {"$pull": {boardComments: {_id: Object(req.params.commentId)}}};
+		let boardDelete = await BoardController.updateBoard(boardFindOnequery, boardDeleteSetquery);
+		output.msg = "success";
+		output.data = {
+			result: "commentdelete success"
+		}
+
+
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
+}
+//좋아요
+exports.likePushPull = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		output.data = null;
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let boardFindOnequery = {_id: ObjectId(req.params.boardId)};
+		if(req.body.boardLike == true) {
+			let likeBoardtruequery = {"$push": {"boardLikeUsers": userInfo.userId}, "$inc": {boardTodayCount: 1}};
+			let likeBoardtrue = await BoardController.updateBoard(boardFindOnequery,likeBoardtruequery);
+		}
+		else {
+			let likeBoardfalsequery = {"$pull": {"boardLikeUsers": userInfo.userId}, "$inc": {boardTodayCount: -1}};
+			let likeBoardfalse = await BoardController.updateBoard(boardFindOnequery, likeBoardfalsequery);
+		}
+		output.msg="success";
+		output.data = null;
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
+}
+//오늘자 베스트게시물선정
+exports.todayBestUserCody = async function() {
+	let todayBestUserCodyquery = {boardBestDate:{"$exists":false}};
+	let todayBestUserCodysort = {"boardTodayCount": -1};
+	let todayBestUserCody = await BoardController.sortListBoard(todayBestUserCodyquery,todayBestUserCodysort);
+	let current_time=new moment().format("YYYY-MM-DD");
+	let todayBestUserCodyChoisequery = {_id:ObjectId(todayBestUserCody[0]._id)};
+	let todayBestUserCodyChoiseset = {"$set": {"boardBestDate": current_time}};
+	let todayBestUserCodyChoise = await BoardController.updateBoard(todayBestUserCodyChoisequery, todayBestUserCodyChoiseset);
+	let resetset = {"$set": {"boardTodayCount": 0}};
+	let resetBoardToday = await BoardController.todayCountreset(resetset); 
+	return;
+	
+}
+//역대 게시물
+exports.pastUserCody = async function(req,res,next) {
+	let pastCodyquery = {boardBestDate: {"$exists": true}};
+	let pastCodysort = {"boardBestDate": -1};
+	let pastCody = await BoardController.sortListBoard(pastCodyquery, pastCodysort);
+	output.msg = "success";
+	output.data = {
+		result: pastCody
+	}
+	res.json(output);
+}
+//게시물 진짜삭제
+exports.deleteBoardSche = async function() {
+	let deletePhoto = [];
+	//let after_time = moment().add(30, 'days');
+	let dbdeletetime=new moment().format("YYYY-MM-DD");
+	//let dbdeletetime = after_time.format("YYYY-MM-DD");
+	let deleteBoardFind = {"boardDeleteTime": dbdeletetime};
+	let deleteBoard = await BoardController.removeBoard(deleteBoardFind);
+	for(let i=0; i<deleteBoard.length; i++)
+		deletePhoto.push({Key: deleteBoard[i]});
+	await multer.deleteFile(deletePhoto);
+	console.log("삭제갯수 : " + deleteBoard.length);
+	return;
+}
+

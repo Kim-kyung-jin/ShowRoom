@@ -1,5 +1,4 @@
-const codyModel = require('../model/CodyModel.js');
-
+const codyModel = require('../model/CodyModel.js'); 
 //mongodb 등록모듈
 exports.addDate = function(data){
 	return new Promise(function(resolve, reject){	
@@ -13,6 +12,7 @@ exports.addDate = function(data){
 	})
 };
 
+
 //mongodb update문
 exports.updateDate = function(model,findData,updateData){
 	return new Promise(function(resolve, reject){
@@ -25,6 +25,7 @@ exports.updateDate = function(model,findData,updateData){
 		})
 	})
 };
+
 
 //mongodb 조건보기 모듈
 exports.allShowData = function(model,findData,showData,sortData){
@@ -87,17 +88,23 @@ exports.aggregateData = function(model,findData){
 			}); 
 		}) 
 };
+exports.aggregate1 = function(model, findData) {
+	return new Promise(function(resolve, reject) {
+		model.aggregate(findData, function(err,result) {
+			if(err)
+				console.log(err);
+			else {
 
-
-
-
-
-
+				 resolve(result);
+			}
+		});
+	})
+}
 
 //mongodb 수정모듈
 exports.editData = function(model,findDate,SetData,callback){
 	model.save(
-			findDate,{ $set:  SetData },
+		findDate,{ $set:  SetData },
 			function(err,result){
 		        if (err) {
 		        	console.log("에러발생");
@@ -107,22 +114,5 @@ exports.editData = function(model,findDate,SetData,callback){
 		        	callback(null,result);
 	            }
 	        }
-		);
+	);
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

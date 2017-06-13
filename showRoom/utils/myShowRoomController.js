@@ -227,6 +227,22 @@ exports.addCodyAge = function(userObjectId,codyId,callback){
 };	
 
 
+//코디 순위
+exports.codyRank = function (Model, mapReduce) {
+	return new Promise(function(resolve, reject){
+		Model.mapReduce(mapReduce, function (err, model, stats) {
+			model.aggregate({
+				"$project":{
+				"_id":"$_id._id",
+				"codyPhoto":"$_id.photo",
+				"Click":"$value"}},{"$sort":{Click:-1}},function(err,docs){
+				resolve(docs);
+			});
+		})
+	})
+};
+
+
 //쇼핑몰 순위
 exports.shopRank = function (Model, mapReduce) {
 	return new Promise(function(resolve, reject){
@@ -236,6 +252,7 @@ exports.shopRank = function (Model, mapReduce) {
 				"_id":0,
 				"shopName":"$_id.shopName",
 				"shopPhoto":"$_id.shopPhoto",
+				"shopUrl":"$_id.shopUrl",
 				"Click":"$value"}},{"$sort":{Click:-1}},function(err,docs){
 				resolve(docs);
 			});

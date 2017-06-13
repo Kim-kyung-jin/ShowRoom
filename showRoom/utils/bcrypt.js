@@ -18,6 +18,7 @@ exports.hashPw=function(userPw){
 // 		});
 // 	}
 // }
+
 exports.hashPwCompare = function(userPw,dbuserPw){
 	return new Promise((resolve, reject) => {
 		bcrypt.compare(userPw,dbuserPw,(err, result) => {
@@ -30,18 +31,7 @@ exports.hashPwCompare = function(userPw,dbuserPw){
 		});
 	});
 }
-exports.hashPwCompare1 = function(userPw,dbuserPw){
-	return new Promise((resolve, reject) => {
-		bcrypt.compare(userPw,dbuserPw,(err, result) => {
-			if(err)
-				reject(new Error("err"));
-			else if(result == true)
-				reject(new Error("새로운비밀번호 입력"));
-			else
-				resolve(result);
-		});
-	});
-}
+
 
 exports.userSecretToken=function(ObjectId){
 	var hash=bcrypt.hashSync(ObjectId,salt);

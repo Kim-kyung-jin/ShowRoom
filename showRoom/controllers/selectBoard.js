@@ -6,487 +6,253 @@ const async=require('async');
 const config=require('config');
 const fs=require('fs');
 const jsonWebToken=require('../utils/jsonWebToken');
-const schedule=require('node-schedule');
-
+const ObjectId = require('mongodb').ObjectID;	
+const multer = require('../utils/multers3.js');
 moment.locale("ko");
 var current_time=new moment().format("YYYY-MM-DD HH:mm:ss");
 var output=new Object();
 
-var deleteScheduleTime='00 11 14 * * 0-6';
 
-function deleteFiles(files,callback){
-	if(files.length==0)
-		callback();
-	else{
-		var f=files.pop();
-		fs.unlink(f,function(err){
-			if(err)
-				console.log(err);
-			else{
-				deleteFiles(files,callback);
+
+//랜덤리스트주기
+async function randomListView(list) {
+	return new Promise(function(resolve,reject) {
+		if(list == 0) 
+			resolve(0);
+		else {
+			let max = list.length;
+			let randomnum = Math.floor(Math.random() * (max));
+			let dataresult = {
+				_id: list[randomnum]._id,
+				selectboardRightPhoto: list[randomnum].selectboardRightPhoto,
+				selectboardLeftPhoto: list[randomnum].selectboardLeftPhoto,
+				selectboardContent: list[randomnum].selectboardContent,
+				selectboardName: list[randomnum].selectboardName,
+				selectboardUserName: '',
+				selectboardUserPhoto: '',
 			}
-		});
-	}
+			let array = [];
+			array.push(dataresult);
+			array.push(list[randomnum].selectboardUserId);
+			resolve(array);
+		}
+	});
 }
-var deleteSchedulePlay = schedule.scheduleJob(deleteScheduleTime, 
-	function(){
-		var count=0;
-		var day=moment().format('DD');
-		var month=moment().format('MM');
-		var year=moment().format('YYYY');
-		var deleteTime=year+month+day;
-		var deletePhotoarray=[];
-		async.waterfall([
-			function(callback){
-				SelectBoardController.deleteListSelectBoard(deleteTime,function(err,result){
-					callback(null,result);
-				});
-			},
-			function(deleteList,callback){
-				var deleteListSize=Object.keys(deleteList).length;
-				async.whilst(
-					function(){
-						return count<deleteListSize;
-					},
-					function(callback){
-						var leftStrArray=deleteList[count].selectboardLeftPhoto.split('/');
-						var rightStrArray=deleteList[count].selectboardRightPhoto.split('/');
-						var leftImageUrl='public/'+leftStrArray[3]+'/'+leftStrArray[4]+'/'+leftStrArray[5]+'/'+leftStrArray[6];
-						var rightImageUrl='public/'+rightStrArray[3]+'/'+rightStrArray[4]+'/'+rightStrArray[5]+'/'+rightStrArray[6];
-						deletePhotoarray.push(leftImageUrl);
-						deletePhotoarray.push(rightImageUrl);
-						SelectBoardController.deleteSelectBoard(deleteList[count].id,function(err,result){
-							if(err)
-								console.log(err);
-						});
-						count++;
-						callback();
-					},
-					function(err){
-						if(err)
-							console.log(err);
-						callback(null,deletePhotoarray,deleteListSize);
-					}
-				);
-			},function(deletePhotoarray,deleteListSize,callback){
-				deleteFiles(deletePhotoarray,function(err){
-					if(err)
-						console.log(err);
-					callback(null,deleteListSize);
-				});
-				
-			}
-		],function(err,result){
-			if(err)
-				console.log(err);
-			else
-				console.log("삭제 갯수 :"+result);
-		});
-	}
-);
-
-
-
-
-
 
 //선택게시판 등록
-exports.addSelectBoard=function(req,res,next){
-	var select=new Select();
-	var leftPhoto=req.files[0].path.split('/');
-	var rightPhoto=req.files[1].path.split('/');
-	select.selectboardContent=req.body.selectboardContent;
-	select.selectboardDatetime=current_time;
-	select.selectboardLeftPhoto=config.Customer.imageurl+'/'+leftPhoto[1]+'/'+leftPhoto[2]+'/'+leftPhoto[3]+'/'+leftPhoto[4];
-	select.selectboardRightPhoto=config.Customer.imageurl+'/'+rightPhoto[1]+'/'+rightPhoto[2]+'/'+rightPhoto[3]+'/'+rightPhoto[4];
-	console.log(req.files[0]);
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else 
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					select.selectboardSelectUsers=select.selectboardUserId=userInfo.userId;
-					SelectBoardController.saveSelectBoard(select,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,0,userTokenInfo,0);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});	
-				}
-			},
-			function(userInfo,userTokenInfo,saveSelectBoardResult,callback){
-				if(userInfo==0 || saveSelectBoardResult==0)
-					callback(null,0,0);
-				else{
-					SelectBoardController.dateListSelectBoard(userInfo.userId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,selectBoardExitResult,callback){
-				if(userInfo==0 || selectBoardExitResult==0)
-					callback(null,0,userTokenInfo,0);
-				else{
-					SelectBoardController.listSelectBoard(userInfo.userId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,selectBoardList,callback){
-				if(userInfo==0)
-					callback(null,userInfo,0);
-				else if(selectBoardList==0){
-					callback(null,userInfo,1);
-				}
-				else{
-					var max=Object.keys(selectBoardList).length;
-					var randomnum=Math.floor(Math.random()*(max));
-					callback(null,userInfo,userTokenInfo,selectBoardList[randomnum]);
-				}
+exports.addSelectBoard = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let select = new Select();
+		
+		let leftPhotoFile = req.files.leftPhoto[0].transforms[0].location;
+		let rightPhotoFile = req.files.rightPhoto[0].transforms[0].location;
+
+		select.selectboardUserName = userInfo.userName;
+		select.selectboardName = req.body.selectboardName;
+		select.selectboardContent = req.body.selectboardContent;
+		select.selectboardDatetime = new moment().format("YYYY-MM-DD");
+		select.selectboardLeftPhoto = leftPhotoFile;
+		select.selectboardRightPhoto = rightPhotoFile;
+		select.selectboardUserId = select.selectboardSelectUsers = userInfo.userId;
+		select.selectboardLeftPhotoKey = req.files.leftPhoto[0].transforms[0].key;
+		select.selectboardRightPhotoKey = req.files.rightPhoto[0].transforms[0].key;
+		let listSelectBoarddata = {"selectboardSelectUsers": {"$ne": userInfo.userId}, "selectboardExit":true, "selectboardDelete": true};
+		let [listSelectBoard, saveSelectBoard] = await Promise.all([
+			SelectBoardController.listSelectFind(listSelectBoarddata),SelectBoardController.saveSelectBoard(select)
+		]);
+		let saveCheckData = {"selectboardUserId":userInfo.userId, "selectboardExit": true};
+		let saveChecksort = {"selectboardDatetime": 1};
+		let saveCheck = await SelectBoardController.saveCheckSelectBoard(saveCheckData, saveChecksort);
+		let listView = await randomListView(listSelectBoard);
+		if(listView == 0) {
+			output.msg = "success";
+			output.data = {
+				result: "Is not Data"
 			}
-		],function(err,userInfo,userTokenInfo,selectBoardDetailResult){
-			if(err)
-				console.log(err);
-			else if(userInfo==0 && selectBoardDetailResult==0){
-				var files=[req.files[0].path,req.files[1].path];
-				deleteFiles(files,function(err){
-					if(err)
-						console.log(err);
-				});
-				
-				output.data="success";
-				output.msg="저장실패";
-				res.json(output);
+		}
+		else {
+			output.msg = "success";
+			output.data = {
+				result: listView
 			}
-			else if(selectBoardDetailResult==1){
-				output.data="success";
-				output.userToken=userTokenInfo.userToken;
-				output.msg="표시할데이터가 없습니다";
-				res.json(output);
-			}
-			else{
-				output.data="success";
-				output.userToken=userTokenInfo.userToken;
-				output.msg=selectBoardDetailResult;
-				res.json(output);
-			}
-		});
+		}
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
 }
-exports.listSelectBoard=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else 
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					SelectBoardController.listSelectBoard(userInfo.userId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-						
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,selectBoardList,callback){
-				if(userInfo==0 && selectBoardList==0)
-					callback(null,userInfo,userTokenInfo,selectBoardList);
-				else if(userInfo!=0 && selectBoardList==0)
-					callback(null,userInfo,userTokenInfo,selectBoardList);
-				else{
-					var max=Object.keys(selectBoardList).length;
-					var randomnum=Math.floor(Math.random()*(max));
-					callback(null,userInfo,userTokenInfo,selectBoardList[randomnum]);
-				}
-			}
-		],function(err,userInfo,userTokenInfo,selectBoardDetailResult){
-			console.log(userInfo);
-			console.log(selectBoardDetailResult);
-			if(err)
-				console.log(err);
-			else if(userInfo==0 && selectBoardDetailResult==0){
-				output.msg="success";
-				output.data="실패";
-				res.json(output);
-			}
-			else if(userInfo!=0 && selectBoardDetailResult==0){
-				output.msg="success";
-				output.userToken=userTokenInfo.userToken;
-				output.data="더이상표시할 게시물이 없다";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.userToken=userTokenInfo.userToken;
-				output.data=selectBoardDetailResult;
-				res.json(output);
-			}
-		});
+//게스트 리스트 줘야댐
+//리스트뿌리기
+exports.listSelectBoard = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		let listSelectBoarddata = {"selectboardExit":true, "selectboardDelete": true};
+		let listSelectBoard = await SelectBoardController.listSelectFind(listSelectBoarddata);
+		let listView = await randomListView(listSelectBoard);
+		let selectboardNamequery = { userId: listView[1] }
+		let selectboarduserInfo = await  UserController.getUserFindObjectId(selectboardNamequery);
+		listView[0].selectboardUserName = selectboarduserInfo.userName;
+		listView[0].selectboardUserPhoto = '나중에 넣을께';
+		output.msg = "success";
+		output.data = listView[0];
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let listSelectBoarddata = {"selectboardSelectUsers": {"$ne": userInfo.userId}, "selectboardExit":true, "selectboardDelete": true};
+		let listSelectBoard = await SelectBoardController.listSelectFind(listSelectBoarddata);
+		let listView = await randomListView(listSelectBoard);
+		let selectboardNamequery = { userId: listView[1] }
+		let selectboarduserInfo = await  UserController.getUserFindObjectId(selectboardNamequery);
+		listView[0].selectboardUserName = selectboarduserInfo.userName;
+		listView[0].selectboardUserPhoto = '나중에 넣을께';
+		if(listView == 0) {
+			output.msg = "success";
+			output.data = "Is not Data";
+		}
+		else {
+			output.msg = "success";
+			output.data = listView[0];
+		}
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
 }
-exports.stopSelectBoard=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else 
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,userInfo,userTokenInfo,0);
-				else{
-					SelectBoardController.detailSelectBoard(req.params.selectBoardId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result.selectboardUserId==userInfo.userId)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,0);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,selectBoardCheck,callback){
-				if(userInfo==0 || selectBoardCheck==0)
-					callback(null,0,userTokenInfo,0);
-				else{
-					SelectBoardController.stopSelectBoard(req.params.selectBoardId,function(err,result){
-						
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userInfo,userTokenInfo,selectBoardStopResult){
-			if(userInfo ==0 || selectBoardStopResult ==0){
-				output.msg="success";
-				output.data="투표중지실패";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.data={
-					userToken:userTokenInfo.userToken,
-					msg:"투표가 중지되었습니다"
-				}
-				res.json(output);
-			}
-		});
+//투표중지
+exports.stopSelectBoard = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: userToken.ObjectId };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let detailSelectBoardquery = {_id: ObjectId(req.params.selectBoardId)};
+		let detailSelectBoard = await SelectBoardController.findSelectBoard(detailSelectBoardquery, userInfo.userId);
+		let stopSelectBoardset = {"$set": {"selectboardExit": false}};
+		let stopSelectBoard = await SelectBoardController.updateSelectBoard(detailSelectBoardquery, stopSelectBoardset);
+		output.msg = "success";
+		output.data = {
+			result: "stop success"
+		}
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
 }
-exports.boteSelectBoard=function(req,res,next){
-	async.waterfall([
-		function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else 
-						callback(null,result);
-				});
-			}, 
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,0,userTokenInfo,0);
-				else{
-					SelectBoardController.boteSelectBoard(req.params.selectBoardId,req.params.bote,userInfo,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,selectBoardBoteResult,callback){
-				if(userInfo==0 || selectBoardBoteResult==0)
-					callback(null,0,userTokenInfo,0);
-				else{
-					SelectBoardController.listSelectBoard(userInfo.userId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,userInfo,userTokenInfo,1);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,selectBoardList,callback){
-				if(userInfo==0 && selectBoardList==0)
-					callback(null,userInfo,userTokenInfo,selectBoardList);
-				else if(userInfo!=0 && selectBoardList==1)
-					callback(null,userInfo,userTokenInfo,selectBoardList);
-				else{
-					var max=Object.keys(selectBoardList).length;
-					var randomnum=Math.floor(Math.random()*(max));
-					callback(null,userInfo,userTokenInfo,selectBoardList[randomnum]);
-				}
-			},
-		],function(err,userInfo,userTokenInfo,selectBoardDetailResult){
-			if(err)
-				console.log(err);
-			else if(userInfo==0 && selectBoardDetailResult==0){
-				output.msg="success";
-				output.data="실패";
-				res.json(output);
-			}
-			else if(userInfo!=0 && selectBoardDetailResult==1){
-				output.msg="success";
-				output.userToken=userTokenInfo.userToken;
-				output.data="더이상표시할 게시물이 없다";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.userToken=userTokenInfo.userToken;
-				output.data=selectBoardDetailResult;
-				res.json(output);
-			}
-		});
+//게스트 보스트
+//투표하기
+exports.boteSelectBoard = async function(req,res,next) {
+	let userToken = await jsonWebToken.TokenCheck(req.body.userToken);
+	let userIdCheckdata = { _id: userToken.ObjectId };
+	let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+	let detailSelectBoardquery = {_id: ObjectId(req.params.selectBoardId)};
+	let boteset = '';
+	if(req.params.bote == 0)
+		boteset = {"$push": {"selectboardSelectUsers": userInfo.userId, "selectboardLeftLike": userInfo.userAge}};
+	else 
+		boteset = {"$push": {"selectboardSelectUsers": userInfo.userId, "selectboardRightLike": userInfo.userAge}};
+	let boteSelectBoard = await SelectBoardController.updateSelectBoard(detailSelectBoardquery, boteset);
+	let listSelectBoarddata = {"selectboardSelectUsers": {"$ne": userInfo.userId}, "selectboardExit":true, "selectboardDelete": true};
+	let listSelectBoard = await SelectBoardController.listSelectFind(listSelectBoarddata);
+	let listView = await randomListView(listSelectBoard);
+	if(listView == 0) {
+		output.msg = "success";
+		output.data = {
+			userToken: userToken.userToken,
+			result: "Is not Data"
+		}
+	}
+	else {
+		output.msg = "success";
+		output.data = {
+			userToken: userToken.userToken,
+			result: listView
+		}
+	}
+	res.json(output);
 }
-exports.deleteSelectBoard=function(req,res,next){
-	async.waterfall([
-			function(callback){
-				jsonWebToken.TokenCheck(req.body.userToken,function(err,result){
-					if(err)
-						console.log(err);
-					else 
-						callback(null,result);
-				});
-			},
-			function(userTokenInfo,callback){
-				UserController.getUserFindObjectId(userTokenInfo.ObjectId,function(err,result){
-					if(err)
-						console.log(err);
-					else if(result==0)
-						callback(null,result,userTokenInfo);
-					else
-						callback(null,result,userTokenInfo);
-				});
-			},
-			function(userInfo,userTokenInfo,callback){
-				if(userInfo==0)
-					callback(null,0,userTokenInfo,0);
-				else{
-					SelectBoardController.detailSelectBoard(req.params.selectBoardId,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result.selectboardUserId==userInfo.userId)
-							callback(null,userInfo,userTokenInfo,result);
-						else
-							callback(null,userInfo,userTokenInfo,0);
-					});
-				}
-			},
-			function(userInfo,userTokenInfo,selectBoardCheck,callback){
-				if(userInfo==0 || selectBoardCheck==0)
-					callback(null,0,userTokenInfo,0);
-				else{
-					var after_time=moment().add(30,'days');
-					var day=after_time.format('DD');
-					var month=after_time.format('MM');
-					var year=after_time.format('YYYY');
-					var deleteTime=year+month+day;
-					
-					
-					SelectBoardController.deleteTimeSelectBoard(req.params.selectBoardId,deleteTime,function(err,result){
-						if(err)
-							console.log(err);
-						else if(result==0)
-							callback(null,0,userTokenInfo,0);
-						else
-							callback(null,userInfo,userTokenInfo,result);
-					});
-				}
-			}
-		],function(err,userInfo,userTokenInfo,selectBoardDeleteResult){
-			if(err)
-				console.log(err);
-			else if(userInfo==0 || selectBoardDeleteResult==0){
-				output.msg="success";
-				output.data="삭제못함";
-				res.json(output);
-			}
-			else{
-				output.msg="success";
-				output.userToken=userTokenInfo.userToken;
-				output.data="삭제성공";
-				res.json(output);
-			}
-		});
+//삭제하기
+exports.deleteSelectBoard = async function(req,res,next) {
+	let userTokenCheck = req.headers.usertoken;
+	if(userTokenCheck == 'guest'){
+		output.msg = "fail";
+		res.setHeader('userToken', 'guest');
+	}
+	else if(userTokenCheck == undefined) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else if(userTokenCheck == null) {
+		output.msg="success";
+		res.setHeader('userToken','guest');
+	}
+	else {
+		let userToken = await jsonWebToken.TokenCheck(req.headers.usertoken);
+		let userIdCheckdata = { _id: ObjectId(userToken.ObjectId) };
+		let userInfo = await UserController.getUserFindObjectId(userIdCheckdata);
+		let detailSelectBoardquery = {_id: ObjectId(req.params.selectBoardId)};
+		let detailSelectBoard = await SelectBoardController.findSelectBoard(detailSelectBoardquery, userInfo.userId);
+		let after_time = moment().add(30, 'days');
+		let times = after_time.format("YYYY-MM-DD");
+		let deleteSelectBoardset = {"$set": {"selectboardExit": false , "selectboardDelete": false, "selectboardDeleteTime": times}};
+		let deleteSelectBoard = await SelectBoardController.updateSelectBoard(detailSelectBoardquery, deleteSelectBoardset);
+		output.msg = "success";
+		output.data = {
+			result: "delete sucess"
+		}
+		res.setHeader('userToken',userToken.userToken);
+	}
+	res.json(output);
 }
+//게시물 진짜 삭제
+exports.deleteSelectBoardSche = async function() {
+	let deletePhoto = [];
+	let after_time = moment().add(30, 'days');
+	//let dbdeletetime=new moment().format("YYYY-MM-DD");
+	let dbdeletetime = after_time.format("YYYY-MM-DD");
+	let deleteSelectBoardFind = {"selectboardDeleteTime": dbdeletetime};
+	let deleteBoard = await SelectBoardController.removeSelectBoard(deleteSelectBoardFind);
+	for(let i=0; i<deleteBoard.length; i++)
+		deletePhoto.push({Key: deleteBoard[i]});
+	await multer.deleteFile(deletePhoto);
+	console.log("삭제갯수 :" + (deleteBoard.length/2));
+	return;
+}
+
 

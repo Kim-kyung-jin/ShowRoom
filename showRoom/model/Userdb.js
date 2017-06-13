@@ -6,8 +6,10 @@ var UserSchema=mongoose.Schema({
 	userId:String,
 	userPwd:String,
 	userPhoto:String,
+	userPhotoKey:String,
 	userName:String,
 	userAge:Number,
+	userSex:Boolean,
 	userCodyMybag:[String],
 	userClothMybag:[Number],
 	userTommoroowCody:String,
@@ -27,11 +29,11 @@ var UserSchema=mongoose.Schema({
 		tagName:String,
 		tagScore:Number
 	}],
-	userPushA:String,
-	userPushI:String,
+	userPushToken: {type: String, 'default':null},
 	userDatetime:String,
 	userLocal:String,
-	userLoginType:String
+	userLoginType:String,
+	userDelete: {type: Boolean, default:false}
 });
 
 var User=mongoose.model('User',UserSchema);

@@ -25,19 +25,20 @@ exports.dbOverlap = function(sql){
 
 
 //쿼리가 하나일 때,data가 있을 때 (sql 1개,data 1개) 
-exports.dbOverlap2 =  function(sql,data){ 	
+exports.dbOverlap2 =  function(sql,data){ 
+	
 	 return new Promise(function(resolve, reject) {
 		 pool.getConnection(function (err, conn){
 			if(err){
-				reject(new Error(err));	
+				reject(new Error(err));
 			}else{
-		  		conn.query(sql,data,function (err, results){
+		  		conn.query(sql,data,function(err,results){
 		     		if(err){
 		     			conn.release();
 			            reject(new Error('err'));		       
 		            }else{
 		            	conn.release();
-		            	resolve(results)
+		            	resolve(results);
 		  			}
 		  		});
 	  		}
@@ -53,7 +54,7 @@ exports.dbOverlap3 = function(sql,sql2,data){
 			if(err){
 				reject(new Error(err));	
 			}
-			conn.query(sql,data,function (err, results){
+			conn.query(sql,conn.escape(data),function (err, results){
 				if (err) {
 					reject(new Error(err));	
 				}
@@ -81,12 +82,12 @@ exports.dbOverlap4 = function(conn,sql,sql2,data1,data2){
 				reject(new Error(err));	
 			}else{
 				conn.beginTransaction(function (err) {
-					conn.query(sql,data1,function (err, results){
+					conn.query(sql,conn.escape(data1),function (err, results){
 						if (err) {
 						    conn.release();
 			            	reject(new Error('err'));
 						}
-			            conn.query(sql2, data2, function (err, result){
+			            conn.query(sql2, conn.escape(data2), function (err, result){
 			            	if (err) {
 			            		conn.rollback();
 			            		conn.release();

@@ -1,25 +1,23 @@
-var mongoose=require('mongoose');
-var express=require('express');
+const mongoose=require('mongoose');
 mongoose.Promise = global.Promise;
-var Schema=mongoose.Schema;
-const fs=require('fs');
-const pathUtil=require('path');
-const async=require('async');
+const Schema=mongoose.Schema;
 
-var CodyScheme=new Schema({
+const CodyScheme=new Schema({
 	codyUserClickAge : {type:[Number], 'default':[]},
 	codyTag : [String],
 	codyPrice : Number,
-	codyShopPhoto : String,
 	codyShopName : String,
+	codyShopPhoto : String,
+	codyShopUrl : String,
 	codyWeather : {type:[Number], 'default':[]},
 	codyDegree : {type:[Number], 'default':[]},
 	codyScheduleContent : {type:[Number], 'default':[]},
 	codyPhoto : String,
 	codyClothNumber : {type:[Number], 'default':[]},
-	codyShopName : String,
 	codyCategoryCode : {type:[String], 'default':[]},
-	codyStarUsers : [String]
+	codyStarUsers : [String],
+	codyClothPrice : {type:[Number], 'default':[]},
+	codyPhotoKey : String
 });
 
 const CodyModel = mongoose.model('Cody', CodyScheme);

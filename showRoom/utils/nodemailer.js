@@ -10,13 +10,12 @@ let transporter = nodemailer.createTransport({
 
 exports.userEmailPwd=function(userId){
 	var mailOptions={
-			from: config.Customer.googleInfo.from,
-			to:userId,
+			from: userId,
+			to:config.Customer.googleInfo.from,
 			subject:"귀하의 비밀번호를 변경해주세요",
 			text:"안녕하세요",
 			html:' <h1>HTML보내기 테스트</h1>'
 		}
-	
 	transporter.sendMail(mailOptions, function(error, info){
 		    if(error){
 		        return console.log(error);

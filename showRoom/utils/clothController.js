@@ -8,12 +8,15 @@ exports.showAppClothList= {
 		  cloth.clothUrl,\
 		  category.categoryCode,\
 		  category.categoryColor,\
-		  category.categoryDescription\
+		  category.categoryDescription,\
+		  shop.shopName,\
+		  shop.shopPhoto\
 		  from cloth \
-		  left join cloth_Category on cloth.clothNumber = cloth_Category.clothNumber \
-		  left join category on category.categoryCode = cloth_Category.categoryCode '
+		  left join cloth_category on cloth.clothNumber = cloth_category.clothNumber \
+		  left join category on category.categoryCode = cloth_category.categoryCode \
+		  left join cloth_shop on cloth_shop.clothNumber = cloth.clothNumber\
+		  left join shop on cloth_shop.shopName = shop.shopName'
 } 
-
 
 //옷 정보보기 
 exports.showClothList='select \
@@ -40,8 +43,8 @@ exports.showClothList='select \
 	  category.categoryColor,\
 	  category.categoryDescription\
 	  from cloth \
-	  left join cloth_Category on cloth.clothNumber = cloth_Category.clothNumber \
-	  left join category on category.categoryCode = cloth_Category.categoryCode\
+	  left join cloth_category on cloth.clothNumber = cloth_category.clothNumber \
+	  left join category on category.categoryCode = cloth_category.categoryCode\
 	  left join cloth_shop on cloth.clothNumber = cloth_shop.clothNumber\
 	  left join shop on shop.shopName = cloth_shop.shopName  where shop.shopName = ?'
 
@@ -71,25 +74,26 @@ exports.showDeTailCloth='select \
 	category.categoryColor,\
 	category.categoryDescription\
 	from cloth \
-	left join cloth_Category on cloth.clothNumber = cloth_Category.clothNumber \
-	left join category on category.categoryCode = cloth_Category.categoryCode\
+	left join cloth_category on cloth.clothNumber = cloth_category.clothNumber \
+	left join category on category.categoryCode = cloth_category.categoryCode\
 	left join cloth_shop on cloth.clothNumber = cloth_shop.clothNumber\
 	left join shop on shop.shopName = cloth_shop.shopName  where cloth.clothNumber = ?'
 
 	
 //웹 상세보기전 데이터 
 exports.showDeTailBeforeCloth='select \
-	  cloth.clothNumber,\
-	  cloth.clothName,\
-	  cloth.clothPhoto,\
-	  cloth.clothType,\
-	  category.categoryCode,\
-	  category.categoryDescription\
+	  cloth.clothnumber,\
+	  cloth.clothname,\
+	  cloth.clothphoto,\
+	  cloth.clothtype,\
+	  cloth.clothprice,\
+	  category.categorycode,\
+	  category.categorydescription\
 	  from cloth \
-	  left join cloth_Category on cloth.clothNumber = cloth_Category.clothNumber \
-	  left join category on category.categoryCode = cloth_Category.categoryCode\
-	  left join cloth_shop on cloth.clothNumber = cloth_shop.clothNumber\
-	  left join shop on shop.shopName = cloth_shop.shopName  where shop.shopName = ?'
+	  left join cloth_category on cloth.clothnumber = cloth_category.clothnumber \
+	  left join category on category.categorycode = cloth_category.categorycode\
+	  left join cloth_shop on cloth.clothnumber = cloth_shop.clothnumber\
+	  left join shop on shop.shopname = cloth_shop.shopname  where shop.shopname = ?'
 	
 //타입별 옷 정보보기 
 exports.showClothTypeList='select \
@@ -116,8 +120,8 @@ exports.showClothTypeList='select \
 	  category.categoryColor,\
 	  category.categoryDescription\
 	  from cloth \
-	  left join cloth_Category on cloth.clothNumber = cloth_Category.clothNumber \
-	  left join category on category.categoryCode = cloth_Category.categoryCode\
+	  left join cloth_category on cloth.clothNumber = cloth_category.clothNumber \
+	  left join category on category.categoryCode = cloth_category.categoryCode\
 	  left join cloth_shop on cloth.clothNumber = cloth_shop.clothNumber\
 	  left join shop on shop.shopName = cloth_shop.shopName  where shop.shopName = ? and clothType = ?'
 	
@@ -127,17 +131,18 @@ exports.showClothTypeList='select \
 exports.addCloth = {
 	clothInsert : 'insert into cloth set ?',
 	newClothNumber : 'select clothNumber from cloth order by clothNumber desc limit 1',
-	cloth_Category : 'insert into cloth_Category set ?',
+	clothPrice : 'select clothPrice from cloth order by clothNumber desc limit 1',
+	cloth_Category : 'insert into cloth_category set ?',
 	cloth_shop : 'insert into cloth_shop set ?',
 }
-
 
 //옷 수정
 exports.editCloth = {
 	clothData : 'select * from  cloth where clothNumber=? ',
-	updateCloth : 'update cloth set ? where clothNumber=? ',
+	updateCloth : 'update cloth set ? where clothnumber=? ',
 	updateCloth_category : 'update cloth_category set ? where clothNumber=? ',
-	updateCloth_shop : 'update cloth_shop set ? where clothNumber=? '
+	updateCloth_shop : 'update cloth_shop set ? where clothNumber=? ',
+	updateClothClick : 'update cloth set clothClickCount = clothClickCount + 1 where clothNumber = ?'
 }
 
 //옷 삭제
@@ -145,10 +150,9 @@ exports.deleteCloth = {
 	deleteCloth : 'delete from cloth where clothNumber=?',
 	deleteCloth_category : 'delete from cloth_category where clothNumber=?',
 	deleteCloth_shop : 'delete from cloth_shop where clothNumber=?',
-	cloth_category : 'select * from cloth_category where clothNumber=?',
+	cloth_category : 'select cloth_category.clothNumber,cloth_category.categoryCode,cloth.clothPrice from cloth_category left join cloth on cloth.clothNumber = cloth_category.clothNumber where cloth.clothNumber=?'
 }
 
 exports.clothCategoryCode = 'select category.categoryCode \
 							 from cloth_category left join category on cloth_category.categoryCode = \
 							 category.categoryCode where cloth_category.clothNumber = ?'
-

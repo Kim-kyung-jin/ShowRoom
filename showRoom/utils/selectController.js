@@ -1,119 +1,95 @@
 const SelectBoard=require('../model/Selectdb');
-const moment=require('moment');
-moment.locale("ko");
-exports.saveSelectBoard=function(select,callback){
-	select.save(function(err,result){
-		if(err)
-			console.log(err);
-		else if(result==null)
-			callback(null,0);
-		else
-			callback(null,result);
+
+
+exports.saveSelectBoard = function(data) {
+	return new Promise(function(resolve, reject) {
+		data.save(function(err, result) {
+			if(err)
+				reject(new Error("err"));
+			else if(result == null)
+				reject(new Error("Is not save"));
+			else
+				resolve(result);
+		});
 	});
 }
-exports.detailSelectBoard=function(selectId,callback){
-	SelectBoard.findOne({_id:selectId},function(err,result){
-		if(err)
-			console.log(err);
-		else if(result==null)
-			callback(null,0);
-		else
-			callback(null,result);
-	});
-}
-exports.listSelectBoard=function(userId,callback){
-	SelectBoard.find({selectboardSelectUsers:{$ne:userId},selectboardExit:true},function(err,result){
-		if(err)
-			console.log(err);
-		else if(result==0)
-			callback(null,0);
-		else
-			callback(null,result);
-	});
-}
-exports.dateListSelectBoard=function(userId,callback){
-	SelectBoard.find({selectboardUserId:userId,selectboardExit:true}).sort({"selectboardDatetime":1}).exec(function(err,result){
-		if(err)
-			console.log(err);
-		else if(result==0)
-			callback(null,0);
-		else{
-			var resultLength=Object.keys(result).length;
-			if(resultLength==6){
-				result[0].selectboardExit=!result[0].selectboardExit;
-				result[0].save();
-				callback(null,1);
+
+exports.saveCheckSelectBoard = function(data, sortset) {
+	return new Promise(function(resolve, reject) {
+		SelectBoard.find(data).sort(sortset).exec(function(err,result) {
+			if(err)
+				reject(new Error("err"));
+			else if(result.length == 0)
+				reject(new Error("Is not data"));
+			else{
+				if(result.length == 6) {
+					result[0].selectboardExit = false;
+					result[0].save();
+					resolve(true);
+				}
+				else
+					resolve(true);
+
 			}
-			else
-				callback(null,1);
-		}
-	});	
-}
-exports.stopSelectBoard=function(selectId,callback){
-	SelectBoard.findOne({_id:selectId},function(err,result){
-		console.log(result);
-		if(err)
-			console.log(err);
-		else if(result==null)
-			callback(null,0);
-		else{
-			result.selectboardExit=!result.selectboardExit;
-			result.save();
-			callback(null,result);
-		}
-	});
-}
-exports.boteSelectBoard=function(selectId,bote,user,callback){
-	if(bote==0){
-		SelectBoard.update({_id:selectId},{"$push":{selectboardSelectUsers:user.userId,selectboardLeftLike:user.userAge}},function(err,result){
-			if(err)
-				console.log(err);
-			else if(result.nModified==1)
-				callback(null,1);
-			else
-				callback(null,0);
 		});
-	}
-	else{
-		SelectBoard.update({_id:selectId},{"$push":{selectboardSelectUsers:user.userId,selectboardRightLike:user.userAge}},function(err,result){
+	});
+}
+exports.findSelectBoard = function(data,checkId) {
+	return new Promise(function(resolve,reject) {
+		SelectBoard.findOne(data, function(err,result) {
 			if(err)
-				console.log(err);
-			else if(result.nModified==1)
-				callback(null,1);
-			else
-				callback(null,0);
+				reject(new Error("err"));
+			else if(result == null)
+				reject(new Error("err"));
+			else {
+				if(result.selectboardUserId == checkId)
+					resolve(1);
+				else
+					reject(new Error("userId is not equal"));
+			}
 		});
-	}
-}
-exports.deleteTimeSelectBoard=function(selectId,deleteTime,callback){
-	SelectBoard.findOne({_id:selectId},function(err,result){
-		if(err)
-			console.log(err);
-		else if(result==null)
-			callback(null,0);
-		else{
-			result.selectboardDelete=deleteTime;
-			result.selectboardExit=false;
-			result.save();
-			callback(null,result);
-		}
 	});
 }
-exports.deleteListSelectBoard=function(deleteTime,callback){
-	SelectBoard.find({selectboardDelete:deleteTime},function(err,result){
-		if(err)
-			console.log(err);
-		else if(result==0)
-			callback(null,0);
-		else
-			callback(null,result);
+exports.updateSelectBoard = function(data, setdata) {
+	return new Promise(function(resolve, reject){
+		SelectBoard.update(data, setdata,function(err,result){
+			if(err)
+				reject(new Error("err"));
+			else if(result.nModified == 1)
+				resolve(result);
+			else
+				reject(new Error("Selectboard is not update"));
+		});
 	});
 }
-exports.deleteSelectBoard=function(selectId,callback){
-	SelectBoard.remove({_id:selectId},function(err,result){
-		if(err)
-			console.log(err);
-		else
-			callback(null,"성공");
+exports.removeSelectBoard = function(data) {
+	let ImageUrl = [];
+	return new Promise(function(resolve, reject) {
+		SelectBoard.find(data,function(err,results) {
+			if(err)
+				reject(new Error("err"));
+			else if(results == null)
+				resolve(ImageUrl);
+			else{
+				results.forEach(function(result) {
+					ImageUrl.push(result.selectboardLeftPhotoKey);
+					ImageUrl.push(result.selectboardRightPhotoKey);
+					result.remove();
+				});
+				resolve(ImageUrl);
+			}
+		});
+	});
+}
+exports.listSelectFind = function(data) {
+	return new Promise(function(resolve, reject) {
+		SelectBoard.find(data, function(err,result) {
+			if(err)
+				reject(new Error("err"));
+			else if(result.length == 0)
+				resolve(0);
+			else 
+				resolve(result);
+		});
 	});
 }
